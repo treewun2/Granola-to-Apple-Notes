@@ -24,6 +24,7 @@ mv ~/Downloads/com.granola-sync.plist ~/Library/LaunchAgents/
 ## 2. Store your API key (never goes in the script)
 
 ```bash
+chmod 700 ~/.granola-sync
 echo 'grn_PASTE_YOUR_KEY_HERE' > ~/.granola-sync/api_key
 chmod 600 ~/.granola-sync/api_key
 ```

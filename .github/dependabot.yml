@@ -1,0 +1,18 @@
+# Dependabot: PRs version bumps for the pinned build dependencies and
+# for the GitHub Actions used by the workflows. Security advisories on
+# these also surface as Dependabot alerts (Security tab).
+# Part of the security process — see docs/SECURITY-PROCESS.md.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/app" # watches app/requirements-build.txt
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [security]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday

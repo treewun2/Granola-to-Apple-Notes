@@ -556,7 +556,7 @@ class GranolaSyncApp(rumps.App):
 
     def on_view_log(self, _sender=None):
         try:
-            engine.APP_DIR.mkdir(parents=True, exist_ok=True)
+            engine.APP_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
             engine.LOG_FILE.touch(exist_ok=True)
             subprocess.run(["open", str(engine.LOG_FILE)], check=False)
         except OSError as e:

@@ -1,0 +1,42 @@
+# Runs on every push and PR: unit tests (the pure logic runs anywhere,
+# no Mac needed) and bandit static security analysis.
+# Part of the security process — see docs/SECURITY-PROCESS.md.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 3.12 = the version bundled into release builds (app/BUILD_PYTHON);
+        # 3.13 = early warning before the build runtime moves forward.
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+  bandit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install bandit
+        run: pip install bandit
+      - name: Static security analysis (fail on medium+ severity)
+        run: >
+          bandit -q --severity-level medium
+          -r granola_sync.py app/granola_sync_app.py app/schedule_logic.py

@@ -92,7 +92,7 @@ def log(msg: str) -> None:
     except Exception:
         pass  # frozen windowed app may have no usable stdout
     try:
-        APP_DIR.mkdir(parents=True, exist_ok=True)
+        APP_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
         with open(LOG_FILE, "a") as f:
             f.write(line + "\n")
     except OSError:
@@ -124,8 +124,12 @@ def save_api_key(key: str, path=API_KEY_FILE) -> None:
         raise SyncError("That doesn't look like a Granola API key "
                         "(expected it to start with 'grn_').")
     p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(key + "\n")
+    p.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    # Owner-only from the first byte — the mode on os.open applies only
+    # when the file is created, so chmod covers pre-existing files too.
+    fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(key + "\n")
     p.chmod(0o600)
 
 
@@ -141,7 +145,8 @@ def api_get(path: str, params: dict, api_key: str) -> dict:
     last_err = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+            # url is always built from the constant https API_BASE
+            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:  # nosec B310
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", errors="replace")[:500]
@@ -521,7 +526,7 @@ def load_state(path=STATE_FILE) -> dict:
 
 def save_state(state: dict, path=STATE_FILE) -> None:
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(state, indent=2))
     tmp.replace(path)
@@ -577,7 +582,7 @@ def load_config(path=CONFIG_FILE) -> dict:
 
 def save_config(cfg: dict, path=CONFIG_FILE) -> None:
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(cfg, indent=2))
     tmp.replace(path)

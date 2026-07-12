@@ -1,0 +1,14 @@
+# Build-time dependencies for the menu-bar app (the engine itself is
+# stdlib-only and has no runtime dependencies).
+#
+# Pins are exact so builds are reproducible and auditable:
+#   - Dependabot watches this file and PRs version bumps (see
+#     .github/dependabot.yml)
+#   - pip-audit checks these pins for known CVEs weekly in CI and in
+#     scripts/release-preflight.sh
+#
+# rumps: the app works around a rumps-0.4.0 icon-sizing behavior
+# (see granola_sync_app.py) — a rumps bump needs a manual smoke test
+# of the built app's menu-bar icon before release.
+rumps==0.4.0
+pyinstaller==6.21.0
