@@ -101,11 +101,8 @@ builds: [docs/NOTARIZING.md](docs/NOTARIZING.md).
 
 Best-effort, no promises — this is a side project. Bug reports and PRs
 are welcome; feature requests are read but may sit. If the app saves
-you time and you'd like to say thanks:
-
-<!-- TODO(steve): add real links (GitHub Sponsors / Ko-fi / Buy Me a
-     Coffee) or delete this section. -->
-*Donations link coming soon.*
+you time and you'd like to say thanks, you can
+[sponsor the project on GitHub](https://github.com/sponsors/treewun2). ♥
 
 ## License
 
