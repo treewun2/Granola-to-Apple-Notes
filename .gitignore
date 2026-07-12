@@ -1,0 +1,15 @@
+# Internal working notes — not part of the public repo
+HANDOFF.md
+
+# Build outputs (releases are published via GitHub Releases)
+app/dist/
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Claude Code local state
+.claude/
