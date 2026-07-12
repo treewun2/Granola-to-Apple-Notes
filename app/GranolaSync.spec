@@ -54,7 +54,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name="Granola Sync.app",
-    icon=None,               # default icon for now; add .icns later if wanted
+    icon=str(here / "GranolaSync.icns"),
     bundle_identifier="com.stevepettit.granola-sync.app",
     info_plist={
         # Menu-bar only: no Dock icon, no app switcher entry.
