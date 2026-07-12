@@ -42,8 +42,17 @@ history, verified API schema, and dead ends already ruled out.
   placeholder paths — the app offers to disable it on first launch)
 - `INSTALL.md` — v1 CLI install (legacy); `INSTALL-APP.md` — end-user
   app install; `docs/NOTARIZING.md` — release signing runbook
-- Runtime state on user Macs: `~/.granola-sync/` (api_key chmod 600,
-  state.json, config.json, sync.log) — shared by CLI and app
+- Security: `SECURITY.md` (public policy), `docs/SECURITY-ASSESSMENT.md`
+  (threat model + accepted risks; reassess on the triggers listed
+  there), `docs/SECURITY-PROCESS.md` (automation coverage map + alert
+  runbook). Build deps pinned in `app/requirements-build.txt`
+  (Dependabot + weekly pip-audit); `app/BUILD_PYTHON` records the
+  Python bundled into the shipped .app (stamped by build.sh, watched
+  weekly by `.github/workflows/security-audit.yml`).
+- `scripts/release-preflight.sh` — pre-release security gate; must
+  pass before a release build
+- Runtime state on user Macs: `~/.granola-sync/` (dir 700, api_key
+  chmod 600, state.json, config.json, sync.log) — shared by CLI and app
 
 ## Commands
 
@@ -52,6 +61,7 @@ python3 granola_sync.py --inspect    # dump raw API JSON (schema check)
 python3 granola_sync.py --dry-run    # list what would sync, write nothing
 python3 granola_sync.py              # real sync
 python3 -m unittest discover -s tests    # pure-logic tests (run anywhere)
+scripts/release-preflight.sh         # security gate — run before release builds
 app/build.sh                         # build the .app (Mac only)
 tail -20 ~/.granola-sync/sync.log
 ```

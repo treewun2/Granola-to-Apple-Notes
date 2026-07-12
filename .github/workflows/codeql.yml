@@ -1,0 +1,31 @@
+# GitHub CodeQL semantic analysis of the Python code — deeper than
+# bandit (taint tracking, injection paths, etc.). Findings appear under
+# the repo's Security tab → Code scanning.
+# Part of the security process — see docs/SECURITY-PROCESS.md.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "24 6 * * 1" # Mondays 06:24 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v3

@@ -1,0 +1,76 @@
+# Weekly security audit. Two checks that watch for the world changing
+# out from under a released build (the code itself is covered by CI and
+# CodeQL on every push):
+#
+#   1. pip-audit — known CVEs in the pinned build dependencies
+#      (app/requirements-build.txt). A hit fails the job → GitHub
+#      notifies by email.
+#   2. Bundled-runtime freshness — the shipped .app freezes a full
+#      CPython + OpenSSL, so Python security fixes reach users only via
+#      a rebuild. When app/BUILD_PYTHON falls behind the latest patch
+#      release, this opens (or updates) a GitHub issue.
+#
+# Part of the security process — see docs/SECURITY-PROCESS.md.
+name: Security audit
+
+on:
+  schedule:
+    - cron: "42 6 * * 1" # Mondays 06:42 UTC
+  workflow_dispatch: # manual run from the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Audit pinned build dependencies for known CVEs
+        run: pip-audit -r app/requirements-build.txt
+
+  runtime-freshness:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check bundled Python runtime against latest patch release
+        id: fresh
+        run: |
+          set +e
+          python3 scripts/check_build_freshness.py | tee freshness.txt
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+      - name: Open issue when a rebuild is recommended
+        if: steps.fresh.outputs.code == '2'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="Security: rebuild recommended — bundled Python runtime is stale"
+          EXISTING=$(gh issue list --state open --search "\"$TITLE\" in:title" \
+                     --json number --jq '.[0].number')
+          BODY_FILE=$(mktemp)
+          {
+            echo "The weekly security audit found the shipped app bundles an outdated Python runtime:"
+            echo
+            echo '```'
+            cat freshness.txt
+            echo '```'
+            echo
+            echo "To fix: update python.org Python on the build Mac, run \`scripts/release-preflight.sh\`, rebuild with \`app/build.sh\`, and publish a release. See docs/SECURITY-PROCESS.md."
+          } > "$BODY_FILE"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body-file "$BODY_FILE"
+          else
+            gh issue create --title "$TITLE" --body-file "$BODY_FILE" \
+              --label security
+          fi
+      - name: Fail the job if the check itself errored
+        if: steps.fresh.outputs.code != '0' && steps.fresh.outputs.code != '2'
+        run: exit 1

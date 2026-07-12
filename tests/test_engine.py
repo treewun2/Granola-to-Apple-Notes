@@ -288,6 +288,22 @@ class ApiKeyTests(unittest.TestCase):
         gs.save_api_key("grn_secret123", self.path)
         self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
 
+    def test_resaving_over_loose_permissions_tightens_them(self):
+        self.path.write_text("grn_old\n")
+        self.path.chmod(0o644)
+        gs.save_api_key("grn_new", self.path)
+        self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
+
+    def test_data_dir_created_by_key_save_is_private(self):
+        nested = Path(self.tmp.name) / "fresh-dir" / "api_key"
+        gs.save_api_key("grn_secret123", nested)
+        self.assertEqual(nested.parent.stat().st_mode & 0o777, 0o700)
+
+    def test_data_dir_created_by_state_save_is_private(self):
+        nested = Path(self.tmp.name) / "fresh-dir" / "state.json"
+        gs.save_state({"synced": {}}, nested)
+        self.assertEqual(nested.parent.stat().st_mode & 0o777, 0o700)
+
     def test_save_rejects_non_granola_key(self):
         with self.assertRaises(gs.SyncError):
             gs.save_api_key("sk-something-else", self.path)

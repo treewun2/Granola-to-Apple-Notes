@@ -68,6 +68,11 @@ Your meeting notes are sensitive. This tool is built accordingly:
 - **Read-only at Granola's end.** Granola's API offers no write
   access, so the tool couldn't modify or delete your Granola notes
   even if it wanted to.
+- **Actively maintained for security.** Automated weekly checks cover
+  dependency CVEs, code scanning, and the Python runtime bundled into
+  releases — see the [threat model](docs/SECURITY-ASSESSMENT.md) and
+  [maintenance process](docs/SECURITY-PROCESS.md). Found a
+  vulnerability? See [SECURITY.md](SECURITY.md).
 
 ## Good to know
 
