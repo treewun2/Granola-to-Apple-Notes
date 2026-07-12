@@ -247,7 +247,11 @@ def md_to_html(text: str) -> str:
             if not in_list:
                 out.append("<ul>")
                 in_list = True
-            out.append(f"<li>{_inline(re.sub(r'^[-*+]\s+', '', stripped))}</li>")
+            # Kept outside the f-string: a backslash inside an f-string
+            # expression is a SyntaxError before Python 3.12, and the
+            # CLI supports the Xcode CLT Python (3.9).
+            item = re.sub(r"^[-*+]\s+", "", stripped)
+            out.append(f"<li>{_inline(item)}</li>")
             continue
         out.append(f"<div>{_inline(stripped)}</div>")
     if in_list:

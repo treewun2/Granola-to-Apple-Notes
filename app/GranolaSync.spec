@@ -60,8 +60,8 @@ app = BUNDLE(
         # Menu-bar only: no Dock icon, no app switcher entry.
         "LSUIElement": True,
         "CFBundleName": "Granola Sync",
-        "CFBundleShortVersionString": "2.1.2",
-        "CFBundleVersion": "2.1.2",
+        "CFBundleShortVersionString": "2.1.3",
+        "CFBundleVersion": "2.1.3",
         # Required for the macOS Automation (TCC) prompt to appear when
         # the app first drives Notes / System Events via AppleScript.
         "NSAppleEventsUsageDescription":
