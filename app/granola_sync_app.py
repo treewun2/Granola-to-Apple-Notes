@@ -36,7 +36,7 @@ import granola_sync as engine  # noqa: E402
 import schedule_logic as sl  # noqa: E402
 
 APP_NAME = "Granola Sync"
-APP_VERSION = "2.1.2"
+APP_VERSION = "2.1.3"
 
 # Menu-bar icon: black template PNG (spiral → arrow → note), drawn at
 # 35x16 pt. macOS recolors template images for dark mode / highlight.

@@ -16,9 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        # 3.9 = the Xcode CLT Python the legacy CLI supports (INSTALL.md);
         # 3.12 = the version bundled into release builds (app/BUILD_PYTHON);
         # 3.13 = early warning before the build runtime moves forward.
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.9", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

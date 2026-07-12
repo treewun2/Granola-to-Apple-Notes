@@ -16,13 +16,39 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CACHE_DIR="$HOME/Library/Caches/GranolaSyncBuild"
 VENV="$CACHE_DIR/venv"
 
+# Pick the interpreter whose runtime gets frozen into the app. Never
+# trust bare `python3` blindly: a brew upgrade can drop the unversioned
+# symlink and let it fall through to the EOL Xcode CLT Python (that
+# shipped a broken 3.9.6 build on 2026-07-12). Anything below 3.12 is
+# refused. Override with GS_PYTHON=/path/to/python.
+PY=""
+if [ -n "${GS_PYTHON:-}" ]; then
+    CANDIDATES=("$GS_PYTHON")
+else
+    CANDIDATES=(python3 python3.13 python3.12)
+fi
+for c in "${CANDIDATES[@]}"; do
+    if command -v "$c" >/dev/null 2>&1 \
+       && "$c" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)' \
+       2>/dev/null; then
+        PY="$c"
+        break
+    fi
+done
+if [ -z "$PY" ]; then
+    echo "No suitable Python found (tried: ${CANDIDATES[*]}; need 3.12+)." >&2
+    echo "Install one (e.g. brew install python@3.12) or set GS_PYTHON." >&2
+    exit 1
+fi
+echo "==> Building with $PY ($("$PY" -c 'import platform; print(platform.python_version())'))"
+
 echo "==> Build workspace: $CACHE_DIR"
 mkdir -p "$CACHE_DIR"
 
-if [ ! -x "$VENV/bin/python" ]; then
-    echo "==> Creating build venv"
-    python3 -m venv "$VENV"
-fi
+# Always a fresh venv: a cached one silently keeps the interpreter it
+# was created with, even after the Python it points at changes.
+rm -rf "$VENV"
+"$PY" -m venv "$VENV"
 
 echo "==> Installing build dependencies (app/requirements-build.txt)"
 "$VENV/bin/pip" install --quiet --upgrade pip setuptools
