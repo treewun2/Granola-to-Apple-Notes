@@ -105,7 +105,7 @@ if [ -d "$APP_BUNDLE" ]; then
     if spctl --assess --type execute "$APP_BUNDLE" 2>/dev/null; then
         ok "Gatekeeper accepts the app (signed + notarized)"
     else
-        warn "Gatekeeper would block this build (unsigned/un-notarized — expected until the Developer ID is active; see docs/NOTARIZING.md)"
+        fail "Gatekeeper rejects this build — releases must be Developer ID signed and notarized (docs/NOTARIZING.md); rebuild with GS_SIGN_IDENTITY + GS_NOTARY_PROFILE"
     fi
 else
     warn "no built app found — run app/build.sh, then re-run this check"

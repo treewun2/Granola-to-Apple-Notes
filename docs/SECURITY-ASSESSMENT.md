@@ -1,6 +1,8 @@
 # Security Assessment — Granola Sync
 
 **Last full assessment: 2026-07-12** (v2.1.2, pre-notarization).
+**Signing update 2026-07-13** (v2.1.4): Developer ID + notarization
+live; R2 experiment resolved and R5 closed — see those entries.
 This document is both the current assessment and the template for
 repeating it — see [Reassessment process](#reassessment-process) at
 the end. Day-to-day automation that keeps the assessment honest is
@@ -116,11 +118,11 @@ damaging the user's Apple Notes.
 - **R2 — Hardened-runtime relaxations in `entitlements.plist`.**
   `allow-unsigned-executable-memory` and `disable-library-validation`
   are required for PyInstaller-frozen CPython. Accepted as the cost
-  of the packaging choice. **Follow-up worth one experiment:** test a
-  signed build *without* `allow-dyld-environment-variables`; combined
-  with disabled library validation it makes `DYLD_INSERT_LIBRARIES`
-  injection easier, and many PyInstaller apps notarize fine without
-  it. Do this alongside the first Developer ID signing run.
+  of the packaging choice. **Experiment resolved 2026-07-13:**
+  `allow-dyld-environment-variables` was removed for the first
+  Developer ID build (v2.1.4) — notarization was accepted and the app
+  launches and runs normally without it, so the entitlement is gone
+  permanently. Only the two required relaxations remain.
 - **R3 — Key on disk rather than macOS Keychain.** A file with 0600
   in a 0700 dir is readable by any process running as the user (macOS
   has no per-app file isolation for unsandboxed apps). Keychain would
@@ -130,10 +132,12 @@ damaging the user's Apple Notes.
 - **R4 — `--inspect` prints raw API JSON** (attendee emails, note
   content) to stdout. It's a local, deliberate debug command;
   documented rather than restricted.
-- **R5 — Unsigned interim distribution.** Until the Developer ID
-  arrives, users bypass Gatekeeper once (right-click → Open) — a
-  habituation risk more than a direct one. Time-boxed: notarization
-  is the very next release step (docs/NOTARIZING.md).
+- **R5 — Unsigned interim distribution. CLOSED 2026-07-13:** releases
+  are Developer ID signed and notarized from v2.1.4 on; the preflight
+  gate now fails un-notarized builds. Residual note: the signing key
+  lives only in the maintainer's login keychain (backed up as an
+  encrypted .p12, never in the repo or CI — deliberate; see the
+  distribution-channel asset above).
 
 ## Reassessment process
 

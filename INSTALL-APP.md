@@ -15,14 +15,13 @@ scripts.
 
 1. **Get the app.** Unzip `Granola-Sync.zip` and drag
    **Granola Sync.app** into your **Applications** folder.
-2. **First open — important.** The app isn't signed with Apple yet, so
-   don't double-click the first time. Instead: **right-click (or
-   Control-click) the app → Open → Open**. macOS remembers your choice;
-   after this one time it opens normally.
-   - On newer macOS versions, if right-click → Open doesn't offer an
-     Open button: open the app once (it will be blocked), then go to
-     **System Settings → Privacy & Security**, scroll down, and click
-     **"Open Anyway"**.
+2. **Open it** — just double-click. Releases from v2.1.4 on are signed
+   with an Apple Developer ID and notarized by Apple, so there's no
+   Gatekeeper hoop to jump through.
+   - *Installing an older release (v2.1.3 or earlier)?* Those were
+     unsigned: right-click → Open → Open the first time, or if that
+     offers no Open button, use System Settings → Privacy & Security →
+     "Open Anyway".
 3. **Add your API key.** A swirl → note icon appears in the menu bar
    and the app asks for your Granola API key. To create one: open **Granola →
    Settings → API → Create new key**, copy the key (it starts with

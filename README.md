@@ -43,9 +43,8 @@ your iPhone and iPad, and yours to keep.
 
 1. Download `Granola-Sync.zip` from the [Releases](../../releases)
    page and drag **Granola Sync.app** into **Applications**.
-2. Open it. If Gatekeeper objects (unsigned interim builds only):
-   right-click → Open → Open, or System Settings → Privacy & Security
-   → "Open Anyway".
+2. Open it — releases are Developer ID signed and notarized by Apple
+   (since v2.1.4), so it opens like any other app.
 3. Paste your Granola API key when asked, run the first sync, and
    click **Allow** when macOS asks about controlling Notes.
 

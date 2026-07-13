@@ -80,8 +80,11 @@ app/build.sh                   # then build (stamps app/BUILD_PYTHON)
 The preflight verifies: clean tree, version numbers consistent
 (app ↔ PyInstaller spec), tests green, no known CVEs in pinned deps,
 no medium+ bandit findings, bundled runtime current, and the built
-app's code signature (Gatekeeper assessment becomes a hard
-expectation once notarized releases start — see docs/NOTARIZING.md).
+app's code signature **including Gatekeeper acceptance** — since
+v2.1.4 every release must be Developer ID signed and notarized
+(docs/NOTARIZING.md), so an unsigned build is a preflight failure.
+Release builds therefore need `GS_SIGN_IDENTITY` and
+`GS_NOTARY_PROFILE` set when running `app/build.sh`.
 
 Release checklist beyond the script:
 
