@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-granola_sync_app.py — menu-bar Mac app around the granola_sync engine.
+granola_sync_app.py: menu-bar Mac app around the granola_sync engine.
 
 Phase 2 of granola-sync: the exact same one-way, one-time-per-note sync
 as the v1 CLI, packaged for non-technical users. See HANDOFF.md.
@@ -20,6 +20,7 @@ Build the .app:      app/build.sh  (must run on a Mac)
 
 import datetime
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -27,7 +28,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 # In development the engine lives one directory up. (In the built app,
-# PyInstaller bundles granola_sync as a module — see GranolaSync.spec.)
+# PyInstaller bundles granola_sync as a module; see GranolaSync.spec.)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import rumps  # noqa: E402
@@ -46,6 +47,7 @@ MENU_BAR_FALLBACK = "🥣"  # only if the icon file is missing (dev checkouts)
 
 TICK_SECONDS = 2           # event-pump cadence (fast so progress feels live)
 SCHEDULE_EVERY_TICKS = 15  # schedule check + stats refresh ≈ every 30s
+RECENT_LOG_LINES = 12      # sync.log lines shown in the "Recent Sync Results" recap
 
 # v1 launchd agent (legacy CLI installs). The repo plist now ships with
 # the generic label; the original personal label covers older installs.
@@ -63,8 +65,8 @@ SYNC_MODE_LABELS = (("one_time", "New Notes Only"),
                     ("update_changed", "New + Updated Notes"))
 
 HELP_TEXT = (
-    "Granola Sync copies your Granola meeting notes into Apple Notes — "
-    "folder “Granola” in your iCloud account — so they're searchable "
+    "Granola Sync copies your Granola meeting notes into Apple Notes "
+    "(the “Granola” folder in your iCloud account) so they're searchable "
     "and on all your devices.\n\n"
     "Sync Options\n"
     "• New Notes Only (default): each note is copied once and never "
@@ -79,16 +81,16 @@ HELP_TEXT = (
     "Granola's API is read-only. If Granola adds write access, it'll "
     "show up here as an option.\n\n"
     "How it works\n"
-    "• Only meetings Granola has AI-summarized are available to sync — "
-    "a note with no summary won't appear.\n"
+    "• Only meetings Granola has AI-summarized are available to sync. "
+    "A note with no summary won't appear.\n"
     "• Duplicates are prevented twice over: a local record, plus a "
     "check inside Apple Notes before every create.\n"
     "• The app only ever touches notes it created itself (they carry a "
-    "“granola-id” footer) — the rest of your Apple Notes are off-limits.\n\n"
+    "“granola-id” footer). The rest of your Apple Notes are off-limits.\n\n"
     "Tips\n"
     "• If notes stop appearing: System Settings → Privacy & Security → "
     "Automation → Granola Sync → allow “Notes”.\n"
-    "• Quitting mid-sync is safe — the next sync picks up where it "
+    "• Quitting mid-sync is safe. The next sync picks up where it "
     "left off.\n"
     "• “View Sync Log” shows exactly what every sync did.\n\n"
     f"Version {APP_VERSION} · data lives in ~/.granola-sync"
@@ -241,7 +243,7 @@ class GranolaSyncApp(rumps.App):
                 when = sl.friendly_timestamp(dt, datetime.datetime.now())
             except ValueError:
                 when = last_run["finished_at"]
-            text = f"Last sync: {when} — {last_run.get('created', 0)} new"
+            text = f"Last sync: {when}, {last_run.get('created', 0)} new"
             refreshed = (last_run.get("updated", 0)
                          + last_run.get("update_copies", 0))
             if refreshed:
@@ -358,14 +360,14 @@ class GranolaSyncApp(rumps.App):
                             "First sync complete",
                             f"{stats['created']} note(s) created in Apple "
                             "Notes → “Granola” folder (iCloud).\n\nFrom now "
-                            "on it syncs on your schedule — see “Sync "
+                            "on it syncs on your schedule. See “Sync "
                             "Automatically” in the menu.")
 
             elif kind == "sync_fatal":
                 _, trigger, message = event
                 self._sync_finished()
                 self._set_error_badge(True)
-                self.mi_last.title = "⚠ Sync failed — see View Sync Log"
+                self.mi_last.title = "⚠ Sync failed. See View Sync Log"
                 engine.log(f"FATAL: {message}")
                 if trigger == "manual":
                     with self._modal():
@@ -374,14 +376,14 @@ class GranolaSyncApp(rumps.App):
             elif kind == "key_ok":
                 _, visible = event
                 with self._modal():
-                    message = ("Your key works — Granola is reachable "
+                    message = ("Your key works. Granola is reachable "
                                f"({visible} notes visible on the first page).")
                     if self._total_synced() == 0:
                         if rumps.alert(
                                 "Connected to Granola",
                                 message + "\n\nRun your first sync now? "
                                 "macOS will ask for permission to control "
-                                "Notes — click “Allow”.",
+                                "Notes. Click “Allow”.",
                                 ok="Sync Now", cancel="Later") == 1:
                             self._first_sync_pending = True
                             self.on_sync_now()
@@ -412,7 +414,7 @@ class GranolaSyncApp(rumps.App):
                         "This Mac still has the v1 “granola-sync” launchd "
                         "job (daily at 8:00 AM). The app now handles "
                         "scheduling itself, so the old job should be turned "
-                        "off — otherwise both will run (harmless thanks to "
+                        "off. Otherwise both will run (harmless thanks to "
                         "the duplicate checks, but wasteful).\n\n"
                         "Turn the old job off now?",
                         ok="Turn It Off", cancel="Leave It") == 1:
@@ -451,7 +453,7 @@ class GranolaSyncApp(rumps.App):
                     "From the next sync onward, notes you edit in Granola "
                     "are re-synced to Apple Notes.\n\n"
                     "Your own edits are safe: a note you've changed in "
-                    "Apple Notes is never overwritten — the new Granola "
+                    "Apple Notes is never overwritten. The new Granola "
                     "version simply appears next to it as “… (updated)”. "
                     "Notes you deleted stay deleted.\n\n"
                     "(Earlier Granola edits aren't back-filled; syncing "
@@ -464,7 +466,7 @@ class GranolaSyncApp(rumps.App):
                 resp = rumps.Window(
                     title="Daily Sync Time",
                     message="When should the daily sync run?\n"
-                            "Use 24-hour HH:MM — e.g. 08:00 or 17:30.",
+                            "Use 24-hour HH:MM (e.g. 08:00 or 17:30).",
                     default_text=current, ok="Save", cancel="Cancel",
                     dimensions=(120, 24)).run()
                 if resp.clicked != 1:
@@ -524,7 +526,7 @@ class GranolaSyncApp(rumps.App):
             while True:
                 resp = rumps.Window(
                     title="Granola API Key",
-                    message="Paste your Granola API key — it starts with "
+                    message="Paste your Granola API key. It starts with "
                             "“grn_”.\n\nTo create one: open Granola → "
                             "Settings → API → Create new key.\n(API keys "
                             "require a Granola Business or Enterprise plan.)",
@@ -555,6 +557,18 @@ class GranolaSyncApp(rumps.App):
     # --------------------------------------------------------------- misc
 
     def on_view_log(self, _sender=None):
+        """Show a plain-language recap of recent syncs, in the same style
+        as the Help window. The Advanced button opens the full sync.log."""
+        with self._modal():
+            resp = rumps.alert(
+                "Recent Sync Results",
+                self._recent_results_text(),
+                ok="Close",
+                other="Advanced…")
+        if resp == -1:  # the "other" button (NSAlertOtherReturn)
+            self._open_full_log()
+
+    def _open_full_log(self):
         try:
             engine.APP_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
             engine.LOG_FILE.touch(exist_ok=True)
@@ -562,6 +576,76 @@ class GranolaSyncApp(rumps.App):
         except OSError as e:
             with self._modal():
                 rumps.alert("Couldn't open the log", str(e))
+
+    def _recent_results_text(self) -> str:
+        """A short, readable recap: how the last sync went, then the tail
+        of the log. Kept calm and plain, like the Help window."""
+        blocks = [self._last_run_summary()]
+        tail = self._log_tail(RECENT_LOG_LINES)
+        if tail:
+            blocks.append("Recent activity\n" + "\n".join(tail))
+        blocks.append("The full sync log records every run in detail. "
+                      "Choose Advanced to open it.")
+        return "\n\n".join(blocks)
+
+    def _last_run_summary(self) -> str:
+        """One short paragraph describing the most recent sync run."""
+        try:
+            state = engine.load_state()
+        except engine.SyncError as e:
+            return f"Couldn't read the sync history: {e}"
+        total = len(state.get("synced", {}))
+        last = state.get("last_run")
+        if not last or not last.get("finished_at"):
+            if total:
+                return (f"{total} note{'' if total == 1 else 's'} synced so "
+                        "far. This app hasn't recorded a sync run yet; earlier "
+                        "syncs ran under the command-line version.")
+            return "No sync has run yet."
+        try:
+            dt = datetime.datetime.fromisoformat(last["finished_at"])
+            when = sl.friendly_timestamp(dt, datetime.datetime.now())
+        except (ValueError, TypeError):
+            when = last.get("finished_at") or "recently"
+        source = {"manual": "manual", "scheduled": "scheduled",
+                  "cli": "command line"}.get(last.get("trigger"), "")
+        created = last.get("created", 0)
+        refreshed = last.get("updated", 0) + last.get("update_copies", 0)
+        failed = last.get("failed", 0)
+        counts = [f"{created} new"]
+        if refreshed:
+            counts.append(f"{refreshed} updated")
+        counts.append(f"{failed} failed")
+        header = f"Last sync: {when}" + (f" ({source})" if source else "")
+        return (f"{header}\n"
+                f"{', '.join(counts)}.\n"
+                f"{last.get('fetched', 0)} notes checked in Granola, "
+                f"{total} synced in total.")
+
+    def _log_tail(self, n: int) -> list:
+        """The last n non-empty log lines, timestamps trimmed to the time
+        and long lines clipped. Reads only the end of the file."""
+        try:
+            with open(engine.LOG_FILE, "rb") as f:
+                f.seek(0, 2)
+                size = f.tell()
+                span = min(size, 16384)
+                f.seek(size - span)
+                data = f.read().decode("utf-8", "replace")
+        except OSError:
+            return []
+        lines = data.splitlines()
+        if span < size and lines:
+            lines = lines[1:]  # first line may be a partial read; drop it
+        tidy = [self._tidy_log_line(ln) for ln in lines if ln.strip()]
+        return tidy[-n:]
+
+    @staticmethod
+    def _tidy_log_line(line: str, width: int = 90) -> str:
+        m = re.match(r"^\d{4}-\d{2}-\d{2}T(\d{2}:\d{2}:\d{2})\s+(.*)$", line)
+        if m:
+            line = f"{m.group(1)}  {m.group(2)}"
+        return line if len(line) <= width else line[:width - 1] + "…"
 
     def on_help(self, _sender=None):
         with self._modal():
