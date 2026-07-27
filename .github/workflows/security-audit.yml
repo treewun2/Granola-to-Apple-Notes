@@ -23,7 +23,13 @@ permissions:
 
 jobs:
   pip-audit:
-    runs-on: ubuntu-latest
+    # Must run on macOS: requirements-build.txt pulls in rumps, whose
+    # transitive dep pyobjc-framework-Cocoa is macOS-only and cannot be
+    # resolved on Linux — its sdist setup.py shells out to /usr/bin/sw_vers,
+    # which is absent there, so pip aborts before pip-audit can run. macOS
+    # also matches the build host and scripts/release-preflight.sh, so CI
+    # audits the exact dependency tree that ships.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
