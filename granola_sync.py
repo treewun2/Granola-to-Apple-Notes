@@ -33,11 +33,13 @@ Setup (one time, CLI use — the menu-bar app does this via its UI):
 
 import argparse
 import datetime
+import functools
 import hashlib
 import html
 import json
 import os
 import re
+import ssl
 import subprocess
 import sys
 import time
@@ -69,6 +71,9 @@ INITIAL_LOOKBACK_DAYS = None
 HTTP_TIMEOUT = 30             # seconds per request
 MAX_RETRIES = 3               # on 429/5xx
 
+# Present on every Mac and kept current by macOS updates.
+MACOS_SYSTEM_CA_FILE = "/etc/ssl/cert.pem"
+
 ID_MARKER_PREFIX = "granola-id:"     # footer marker embedded in each Apple note
 REV_MARKER_PREFIX = "granola-rev:"   # content-version marker (update mode
                                      # targets a note by id + rev together)
@@ -80,6 +85,10 @@ class SyncError(RuntimeError):
     The CLI turns this into a logged FATAL + exit(1); the menu-bar app
     shows it in the UI and keeps running.
     """
+
+
+class AuthError(SyncError):
+    """Granola rejected the API key (HTTP 401)."""
 
 
 # ------------------------------- logging -----------------------------------
@@ -133,6 +142,29 @@ def save_api_key(key: str, path=API_KEY_FILE) -> None:
     p.chmod(0o600)
 
 
+def make_ssl_context(fallback_cafile: str = MACOS_SYSTEM_CA_FILE) -> ssl.SSLContext:
+    """A certificate-verifying TLS context that also works without Homebrew.
+
+    The built app bundles Homebrew's OpenSSL, whose only default CA
+    location is /opt/homebrew/etc/openssl@3/cert.pem. On a Mac without
+    Homebrew it starts with zero trusted roots and every request fails
+    CERTIFICATE_VERIFY_FAILED (python.org Python behaves the same until
+    "Install Certificates.command" is run). When the default store is
+    empty, trust Apple's system bundle instead. Verification is never
+    relaxed; this only supplies the trust anchors.
+    """
+    ctx = ssl.create_default_context()
+    if (ctx.cert_store_stats().get("x509_ca", 0) == 0
+            and os.path.isfile(fallback_cafile)):
+        ctx.load_verify_locations(cafile=fallback_cafile)
+    return ctx
+
+
+@functools.lru_cache(maxsize=1)
+def _tls_context() -> ssl.SSLContext:
+    return make_ssl_context()
+
+
 def api_get(path: str, params: dict, api_key: str) -> dict:
     """GET with retry on 429/5xx. Raises SyncError on anything else."""
     qs = urllib.parse.urlencode({k: v for k, v in params.items() if v is not None})
@@ -146,7 +178,8 @@ def api_get(path: str, params: dict, api_key: str) -> dict:
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             # url is always built from the constant https API_BASE
-            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:  # nosec B310
+            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT,  # nosec B310
+                                        context=_tls_context()) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", errors="replace")[:500]
@@ -158,11 +191,21 @@ def api_get(path: str, params: dict, api_key: str) -> dict:
                 last_err = f"HTTP {e.code}: {body}"
                 continue
             if e.code == 401:
-                raise SyncError(
+                raise AuthError(
                     "API returned 401 Unauthorized — the key in "
                     f"{API_KEY_FILE} is invalid, expired, or revoked.")
             raise SyncError(f"API error HTTP {e.code} for {url}\n  Response: {body}")
         except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            reason = getattr(e, "reason", None)
+            if isinstance(reason, ssl.SSLCertVerificationError):
+                detail = getattr(reason, "verify_message", None) or str(reason)
+                raise SyncError(
+                    "Couldn't verify the security certificate of "
+                    f"{urllib.parse.urlsplit(API_BASE).hostname} ({detail}), "
+                    "so the connection was stopped before anything was sent. "
+                    "Usual causes: a company network or security software "
+                    "that inspects secure traffic, or this Mac's date and "
+                    "time being wrong.")
             if attempt < MAX_RETRIES:
                 wait = 5 * attempt
                 log(f"Network error ({e}), retrying in {wait}s ...")

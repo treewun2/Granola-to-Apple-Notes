@@ -4,10 +4,16 @@ Runs anywhere (no Mac, no network, no API key needed):
     python3 -m unittest discover -s tests -v
 """
 
+import io
+import os
+import re
+import ssl
 import sys
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root
 
@@ -317,6 +323,84 @@ class ApiKeyTests(unittest.TestCase):
         self.path.write_text("hello\n")
         with self.assertRaises(gs.SyncError):
             gs.load_api_key(self.path)
+
+
+def _system_ca_certs():
+    """Real CA certificates (PEM blocks) from whatever bundle this host has."""
+    candidates = [ssl.get_default_verify_paths().cafile,
+                  "/etc/ssl/cert.pem",
+                  "/etc/ssl/certs/ca-certificates.crt"]
+    for path in candidates:
+        if path and os.path.isfile(path):
+            text = Path(path).read_text()
+            return re.findall(r"-----BEGIN CERTIFICATE-----.+?"
+                              r"-----END CERTIFICATE-----", text, re.S)
+    return []
+
+
+# A Mac without Homebrew: the bundled OpenSSL's default CA paths are absent.
+NO_DEFAULT_CAS = {"SSL_CERT_FILE": "/nonexistent/cert.pem",
+                  "SSL_CERT_DIR": "/nonexistent/certs"}
+
+
+class TlsContextTests(unittest.TestCase):
+    def setUp(self):
+        with mock.patch.dict(os.environ, NO_DEFAULT_CAS):
+            simulated = ssl.create_default_context().cert_store_stats()
+        if simulated["x509_ca"]:
+            # LibreSSL (Apple's /usr/bin/python3) ignores SSL_CERT_FILE and
+            # always loads Apple's bundle, so it can't have this bug.
+            self.skipTest(f"{ssl.OPENSSL_VERSION} ignores SSL_CERT_FILE")
+        certs = _system_ca_certs()
+        if len(certs) < 2:
+            self.skipTest("no system CA bundle on this host")
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.ca_a = Path(self.tmp.name) / "a.pem"
+        self.ca_b = Path(self.tmp.name) / "b.pem"
+        self.ca_a.write_text(certs[0] + "\n")
+        self.ca_b.write_text(certs[1] + "\n")
+
+    def test_falls_back_when_default_store_is_empty(self):
+        with mock.patch.dict(os.environ, NO_DEFAULT_CAS):
+            ctx = gs.make_ssl_context(str(self.ca_a))
+        self.assertEqual(ctx.cert_store_stats()["x509_ca"], 1)
+
+    def test_default_store_wins_when_it_has_certs(self):
+        with mock.patch.dict(os.environ, {"SSL_CERT_FILE": str(self.ca_a)}):
+            ctx = gs.make_ssl_context(str(self.ca_b))
+        self.assertEqual(ctx.cert_store_stats()["x509_ca"], 1)
+
+    def test_missing_fallback_never_relaxes_verification(self):
+        with mock.patch.dict(os.environ, NO_DEFAULT_CAS):
+            ctx = gs.make_ssl_context("/nonexistent/fallback.pem")
+        self.assertEqual(ctx.cert_store_stats()["x509_ca"], 0)
+        self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(ctx.check_hostname)
+
+
+class ApiGetErrorTests(unittest.TestCase):
+    def test_cert_failure_raises_plain_error_without_retrying(self):
+        reason = ssl.SSLCertVerificationError(1, "certificate verify failed")
+        reason.verify_message = "unable to get local issuer certificate"
+        with mock.patch("urllib.request.urlopen",
+                        side_effect=urllib.error.URLError(reason)) as urlopen, \
+                mock.patch("time.sleep") as sleep:
+            with self.assertRaises(gs.SyncError) as ctx:
+                gs.api_get("/notes", {}, "grn_test")
+        self.assertEqual(urlopen.call_count, 1)
+        sleep.assert_not_called()
+        self.assertNotIsInstance(ctx.exception, gs.AuthError)
+        self.assertIn("unable to get local issuer certificate",
+                      str(ctx.exception))
+        self.assertIn("before anything was sent", str(ctx.exception))
+
+    def test_401_raises_auth_error(self):
+        err = urllib.error.HTTPError("https://x", 401, "Unauthorized", {},
+                                     io.BytesIO(b""))
+        with mock.patch("urllib.request.urlopen", side_effect=err):
+            with self.assertRaises(gs.AuthError):
+                gs.api_get("/notes", {}, "grn_test")
 
 
 if __name__ == "__main__":

@@ -37,7 +37,7 @@ import granola_sync as engine  # noqa: E402
 import schedule_logic as sl  # noqa: E402
 
 APP_NAME = "Granola Sync"
-APP_VERSION = "2.1.4"
+APP_VERSION = "2.1.5"
 
 # Menu-bar icon: black template PNG (spiral → arrow → note), drawn at
 # 35x16 pt. macOS recolors template images for dark mode / highlight.
@@ -392,13 +392,21 @@ class GranolaSyncApp(rumps.App):
                 self._refresh_stats()
 
             elif kind == "key_bad":
-                _, message = event
+                _, message, rejected = event
                 with self._modal():
-                    rumps.alert(
-                        "Key saved, but Granola rejected it",
-                        message + "\n\nDouble-check the key in Granola "
-                        "(Settings → API) and use “Set API Key…” to "
-                        "re-enter it.")
+                    if rejected:
+                        rumps.alert(
+                            "Key saved, but Granola rejected it",
+                            message + "\n\nDouble-check the key in Granola "
+                            "(Settings → API) and use “Set API Key…” to "
+                            "re-enter it.")
+                    else:
+                        rumps.alert(
+                            "Key saved, but Granola couldn't be reached",
+                            message + "\n\nYour key hasn't been tested yet. "
+                            "It's saved and will be used as soon as the "
+                            "connection works, so there's no need to enter "
+                            "it again.")
                 self._refresh_stats()
 
     # ------------------------------------------------------------- startup
@@ -549,10 +557,12 @@ class GranolaSyncApp(rumps.App):
             data = engine.api_get("/notes", {}, key)
             visible = len(data.get("notes", [])) if isinstance(data, dict) else 0
             self._events.put(("key_ok", visible))
+        except engine.AuthError as e:
+            self._events.put(("key_bad", str(e), True))
         except engine.SyncError as e:
-            self._events.put(("key_bad", str(e)))
+            self._events.put(("key_bad", str(e), False))
         except Exception as e:
-            self._events.put(("key_bad", f"Unexpected error: {e!r}"))
+            self._events.put(("key_bad", f"Unexpected error: {e!r}", False))
 
     # --------------------------------------------------------------- misc
 

@@ -97,6 +97,17 @@ damaging the user's Apple Notes.
 - **TLS:** `urllib.request` against an https URL verifies
   certificates by default; the URL is a module constant, so no
   scheme/host injection (bandit B310 is a false positive here).
+  **Trust anchors (fixed 2026-11-25, v2.1.5):** the frozen app's
+  OpenSSL looks for CAs only at Homebrew's path, so on Macs without
+  Homebrew it had *zero* trusted roots and every sync failed closed
+  with CERTIFICATE_VERIFY_FAILED (it never fell back to insecure).
+  `make_ssl_context()` now loads Apple's root-owned `/etc/ssl/cert.pem`
+  when the default store is empty. Verification mode and hostname
+  checking are unchanged and unit-tested. Residual: corporate
+  TLS-inspection roots live in the Keychain, which OpenSSL can't
+  read; such users get a plain-English certificate error.
+  Reading the Keychain would need `truststore`, a dependency change
+  for the maintainer to decide.
 - **Destructive-action surface:** there is no delete code path at
   all; in-place edits require a SHA-256 fingerprint match proving the
   tool wrote the current body (`plan_update_action` decision table is
