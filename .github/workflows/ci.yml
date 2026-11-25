@@ -13,13 +13,22 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         # 3.9 = the Xcode CLT Python the legacy CLI supports (INSTALL.md);
         # 3.12 = the version bundled into release builds (app/BUILD_PYTHON);
         # 3.13 = early warning before the build runtime moves forward.
         python-version: ["3.9", "3.12", "3.13"]
+        os: [ubuntu-latest]
+        include:
+          # No 3.9 builds exist for ubuntu-latest (26.04): 3.9 is EOL.
+          - python-version: "3.9"
+            os: ubuntu-24.04
+        exclude:
+          - python-version: "3.9"
+            os: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7

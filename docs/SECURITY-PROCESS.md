@@ -116,6 +116,15 @@ workflow files alone don't cover them.
 
 ## Maintaining this process itself
 
+- **Quiet periods switch the automation off.** GitHub disables a
+  public repo's scheduled workflows after 60 days without a commit to
+  the default branch (it emails a warning first). A disabled workflow
+  also skips PR runs, so CodeQL and the weekly Security audit silently
+  stop. This happened 2026-11-25 after four quiet months. Re-enable
+  with `gh workflow enable CodeQL` and `gh workflow enable "Security
+  audit"`. `scripts/release-preflight.sh` (step 8) fails while any
+  workflow is disabled.
+
 - If a workflow is renamed/added/removed, update the coverage map
   above — the map is the contract that every risk class has an owner.
 - The freshness checker consumes the free

@@ -24,7 +24,7 @@ warn() { echo "  ! $1"; }
 
 cd "$REPO"
 
-echo "== 1/7 Working tree"
+echo "== 1/8 Working tree"
 if [ -z "$(git status --porcelain)" ]; then
     ok "clean (releases build from committed code only)"
 else
@@ -32,7 +32,7 @@ else
     git status --short | sed 's/^/      /'
 fi
 
-echo "== 2/7 Version consistency"
+echo "== 2/8 Version consistency"
 APP_VER=$(sed -n 's/^APP_VERSION = "\(.*\)"/\1/p' app/granola_sync_app.py)
 SPEC_VERS=$(grep -o '"CFBundle\(ShortVersion\)\{0,1\}\(String\|Version\)": "[^"]*"' \
             app/GranolaSync.spec | grep -o '[0-9][0-9.]*' | sort -u)
@@ -42,14 +42,14 @@ else
     fail "version mismatch: APP_VERSION='$APP_VER' vs spec: $SPEC_VERS"
 fi
 
-echo "== 3/7 Unit tests"
+echo "== 3/8 Unit tests"
 if python3 -m unittest discover -s tests >/dev/null 2>&1; then
     ok "all tests pass"
 else
     fail "unit tests failed — run: python3 -m unittest discover -s tests -v"
 fi
 
-echo "== 4/7 Scanner tools"
+echo "== 4/8 Scanner tools"
 if [ ! -x "$TOOLS_VENV/bin/pip-audit" ] || [ ! -x "$TOOLS_VENV/bin/bandit" ]; then
     echo "  … installing bandit + pip-audit into $TOOLS_VENV (one time)"
     python3 -m venv "$TOOLS_VENV" >/dev/null 2>&1
@@ -69,7 +69,7 @@ else
     warn "pip-audit unavailable — skipped (weekly CI run covers it)"
 fi
 
-echo "== 5/7 Static analysis (bandit, medium+ severity)"
+echo "== 5/8 Static analysis (bandit, medium+ severity)"
 if [ -x "$TOOLS_VENV/bin/bandit" ]; then
     if "$TOOLS_VENV/bin/bandit" -q --severity-level medium \
             -r granola_sync.py app/granola_sync_app.py app/schedule_logic.py \
@@ -83,7 +83,7 @@ else
     warn "bandit unavailable — skipped (CI runs it on every push)"
 fi
 
-echo "== 6/7 Bundled Python runtime freshness"
+echo "== 6/8 Bundled Python runtime freshness"
 FRESH_OUT=$(python3 "$SCRIPT_DIR/check_build_freshness.py" 2>&1)
 FRESH_CODE=$?
 echo "$FRESH_OUT" | sed 's/^/      /'
@@ -93,7 +93,7 @@ case $FRESH_CODE in
     *) warn "freshness check couldn't run (offline?)" ;;
 esac
 
-echo "== 7/7 Built app signature (build cache)"
+echo "== 7/8 Built app signature (build cache)"
 APP_BUNDLE="$HOME/Library/Caches/GranolaSyncBuild/dist/Granola Sync.app"
 if [ -d "$APP_BUNDLE" ]; then
     if codesign --verify --deep --strict "$APP_BUNDLE" 2>/dev/null; then
@@ -109,6 +109,23 @@ if [ -d "$APP_BUNDLE" ]; then
     fi
 else
     warn "no built app found — run app/build.sh, then re-run this check"
+fi
+
+echo "== 8/8 GitHub security automation"
+# GitHub silently disables scheduled workflows after 60 days without a
+# commit to the default branch, and a disabled workflow skips PR runs too.
+if command -v gh >/dev/null 2>&1 \
+        && WF=$(gh workflow list --all --json name,state \
+                --jq '.[] | "\(.state)\t\(.name)"' 2>/dev/null); then
+    DISABLED=$(printf '%s\n' "$WF" | grep -v '^active' || true)
+    if [ -z "$DISABLED" ]; then
+        ok "all workflows active (CI, CodeQL, Security audit, Dependabot)"
+    else
+        fail "disabled workflows — re-enable with: gh workflow enable \"<name>\""
+        printf '%s\n' "$DISABLED" | sed 's/^/      /'
+    fi
+else
+    warn "couldn't query GitHub (gh missing, offline, or not logged in)"
 fi
 
 echo
