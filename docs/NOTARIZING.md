@@ -67,5 +67,12 @@ xcrun stapler validate "$APP"              # want: "The validate action worked!"
   the default workflow changed.
 - If notarization is rejected, get the log with
   `xcrun notarytool log <submission-id> --keychain-profile granola-sync`.
+- `HTTP status code: 403. A required agreement is missing or has
+  expired` happens before upload, so there's no submission ID or log. Apple
+  has published an updated Developer Program License Agreement. The
+  account holder must accept it at developer.apple.com/account (or App
+  Store Connect → Business), then re-run the build. `build.sh` stops at
+  that point, so the zip it left behind is signed but **not
+  notarized**. Don't ship it.
   The usual culprits for PyInstaller apps are covered by
   `app/entitlements.plist` already.
